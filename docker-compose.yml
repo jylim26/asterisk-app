@@ -1,0 +1,22 @@
+services:
+  asterisk:
+    build: .
+    container_name: asterisk
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - ./config:/etc/asterisk-templates:ro
+      - ./entrypoint.sh:/entrypoint.sh
+      - asterisk-config:/etc/asterisk
+      - asterisk-logs:/var/log/asterisk
+      - asterisk-spool:/var/spool/asterisk
+    entrypoint: /entrypoint.sh
+    environment:
+      - TZ=Asia/Seoul
+
+volumes:
+  asterisk-config:
+  asterisk-logs:
+  asterisk-spool:
