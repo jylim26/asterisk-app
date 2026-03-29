@@ -1,10 +1,10 @@
 package com.example.ari.infra.ari.client;
 
 import com.example.ari.global.config.AriProperties;
-import com.example.ari.infra.ari.dto.AriEventDeserializer;
-import com.example.ari.infra.ari.event.AriEventDispatcher;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
@@ -17,7 +17,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Component
-public class AriConnectionManager implements SmartLifecycle, AriConnectionCallback {
+@RequiredArgsConstructor
+public class AriConnectionManager implements SmartLifecycle {
 
     private final WebSocketClient webSocketClient;
     private final AriProperties ariProperties;
@@ -28,17 +29,6 @@ public class AriConnectionManager implements SmartLifecycle, AriConnectionCallba
     private volatile WebSocketSession currentSession;
     private final AtomicInteger reconnectAttempt = new AtomicInteger(0);
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
-
-    public AriConnectionManager(WebSocketClient ariWebSocketClient,
-                                AriProperties ariProperties,
-                                TaskScheduler ariTaskScheduler,
-                                AriEventDeserializer ariEventDeserializer,
-                                AriEventDispatcher ariEventDispatcher) {
-        this.webSocketClient = ariWebSocketClient;
-        this.ariProperties = ariProperties;
-        this.ariTaskScheduler = ariTaskScheduler;
-        this.ariWebSocketHandler = new AriWebSocketHandler(ariEventDeserializer, ariEventDispatcher, this);
-    }
 
     @Override
     public void start() {
@@ -64,15 +54,15 @@ public class AriConnectionManager implements SmartLifecycle, AriConnectionCallba
         return Integer.MAX_VALUE;
     }
 
-    @Override
-    public void onConnected() {
+    @EventListener
+    public void onConnected(AriConnectedEvent event) {
         reconnectAttempt.set(0);
         reconnecting.set(false);
         log.info("ARI WebSocket 연결 완료, 재연결 카운터 리셋");
     }
 
-    @Override
-    public void onDisconnected() {
+    @EventListener
+    public void onDisconnected(AriDisconnectedEvent event) {
         if (running && reconnecting.compareAndSet(false, true)) {
             scheduleReconnect();
         }

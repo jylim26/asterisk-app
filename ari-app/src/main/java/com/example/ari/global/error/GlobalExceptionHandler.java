@@ -10,6 +10,17 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(InvalidConfigurationException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidConfiguration(InvalidConfigurationException e) {
+        log.error("Configuration error: {}", e.getMessage());
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "CONFIGURATION_ERROR",
+                e.getMessage()
+        );
+        return ResponseEntity.internalServerError().body(response);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("Invalid argument: {}", e.getMessage());
