@@ -1,10 +1,13 @@
 package com.example.ari.global.error;
 
+import com.example.ari.call.exception.ChannelNotFoundException;
+import com.example.ari.call.exception.InvalidCallStateException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.RestClientResponseException;
 
 @Slf4j
 @RestControllerAdvice
@@ -19,6 +22,39 @@ public class GlobalExceptionHandler {
                 e.getMessage()
         );
         return ResponseEntity.internalServerError().body(response);
+    }
+
+    @ExceptionHandler(ChannelNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleChannelNotFound(ChannelNotFoundException e) {
+        log.warn("Channel not found: {}", e.getMessage());
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.NOT_FOUND.value(),
+                "CHANNEL_NOT_FOUND",
+                e.getMessage()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(InvalidCallStateException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCallState(InvalidCallStateException e) {
+        log.warn("Invalid call state: {}", e.getMessage());
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.CONFLICT.value(),
+                "INVALID_CALL_STATE",
+                e.getMessage()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(RestClientResponseException.class)
+    public ResponseEntity<ErrorResponse> handleRestClientResponse(RestClientResponseException e) {
+        log.error("ARI REST 호출 실패: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.BAD_GATEWAY.value(),
+                "ARI_CLIENT_ERROR",
+                "ARI 서버와 통신 중 오류가 발생했습니다"
+        );
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(response);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
