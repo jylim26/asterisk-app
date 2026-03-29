@@ -80,23 +80,27 @@ ari-app/
 │   ├── global/                        # 앱 전역 설정 및 공통
 │   │   ├── config/                    #   RestClient, WebSocket, Properties 등
 │   │   ├── error/                     #   글로벌 예외 처리 (GlobalExceptionHandler)
-│   │   ├── event/                     #   공통 이벤트 클래스 (infra↔domain 간 매개)
-│   │   └── util/                      #   공통 유틸리티
-│   ├── infra/                         # 외부 시스템 연동 인프라
-│   │   ├── ari/                       #   ARI 클라이언트 (WebSocket/REST)
-│   │   │   ├── client/                #     연결 관리, REST 래퍼
-│   │   │   ├── event/                 #     이벤트 디스패처, 핸들러 인터페이스
-│   │   │   └── dto/                   #     ARI 프로토콜 매핑 객체
-│   │   └── backend/                   #   기간계 API 클라이언트
-│   │       └── dto/                   #     기간계 요청/응답 객체
-│   ├── domain/                        # 핵심 도메인 (비즈니스 로직)
-│   │   ├── call/                      #   콜 제어 (model/service/event/dto/exception)
-│   │   ├── ivr/                       #   IVR (model/service/event/dto/exception)
-│   │   ├── recording/                 #   녹취 (model/service/repository/dto/exception)
-│   └── api/                           # API 표현 계층 (Controller)
-│       ├── call/                      #   콜 제어 API
-│       ├── ivr/                       #   IVR 관리 API
-│       └── recording/                 #   녹취 조회/다운로드 API
+│   │   └── event/                     #   공통 이벤트 클래스 (도메인 간 매개)
+│   ├── infra/ari/                     # 공유 ARI 인프라 (WebSocket 연결, 이벤트 역직렬화)
+│   │   ├── client/                    #   AriConnectionManager, AriWebSocketHandler
+│   │   ├── event/                     #   AriEventDispatcher
+│   │   └── dto/                       #   ARI 프로토콜 매핑 객체
+│   ├── call/                          # 콜 제어 도메인
+│   │   ├── domain/                    #   Call, CallState (도메인 모델)
+│   │   ├── service/                   #   CallService (비즈니스 로직)
+│   │   ├── infra/                     #   AriCallClient (ARI REST 채널 제어)
+│   │   ├── event/                     #   CallEventListener
+│   │   ├── exception/                 #   ChannelNotFoundException 등
+│   │   ├── dto/                       #   CallResponse 등
+│   │   └── api/                       #   CallController
+│   ├── ivr/                           # IVR 도메인
+│   │   ├── domain/                    #   IvrSession, IvrStep
+│   │   ├── service/                   #   IvrService
+│   │   ├── infra/                     #   AriIvrClient
+│   │   ├── event/                     #   IvrEventListener
+│   │   └── ...
+│   └── recording/                     # 녹취 도메인 (추후)
+│       └── ...
 ├── src/main/resources/
 │   ├── application.yml
 │   └── db/migration/
@@ -104,13 +108,13 @@ ari-app/
 └── build.gradle.kts
 ```
 
-### 레이어 규칙
+### 패키지 규칙
 
-- `api/` → `domain/`, `infra/` → `global/`, `domain/` → `global/` 방향으로만 의존
-- `infra/`와 `domain/`은 서로 직접 참조하지 않음
-- `domain/` 내 각 도메인(call, ivr, recording)은 자체 model/service/event/dto/exception을 가짐
-- `global/`은 어디서든 참조 가능한 공통 모듈
-- ARI 이벤트 전달: `infra/ari/event/`가 WebSocket 이벤트를 `global/event/` 이벤트 객체로 변환 후 `ApplicationEventPublisher`로 발행 → `domain/*/event/`가 `@EventListener`로 구독. infra↔domain 간 직접 의존 없음
+- **도메인 기준 패키지**: `call/`, `ivr/`, `recording/`이 각각 자체 domain·service·infra·api를 포함
+- **도메인 간 직접 참조 금지** — 도메인 간 통신은 `global/event/`를 통해서만
+- 각 도메인 내에서는 자유롭게 참조 가능 (예: `call/service/` → `call/infra/` 직접 사용 OK)
+- `global/`, `infra/ari/`는 어디서든 참조 가능한 공유 모듈
+- ARI 이벤트 전달: `infra/ari/event/AriEventDispatcher`가 WebSocket 이벤트를 `global/event/` 이벤트로 변환 후 `ApplicationEventPublisher`로 발행 → 각 도메인의 `event/`가 `@EventListener`로 구독
 
 ### 네이밍
 
@@ -124,6 +128,8 @@ ari-app/
 
 - Java 21 문법 사용: `record`, `sealed class`, 패턴 매칭. **`var` 사용 금지** — 항상 명시적 타입 선언
 - **Setter 사용 금지** (전역) — 상태 변경은 의미 있는 도메인 메서드로 표현 (예: `call.hangUp()`)
+- **Getter는 Lombok `@Getter`** 사용 — 수동 getter 메서드 작성 금지
+- **생성자 주입은 `@RequiredArgsConstructor`** 우선 — 수동 생성자 주입 지양
 - DTO는 `record`로 선언 (불변 보장)
 - JPA 엔티티:
   - `@NoArgsConstructor(access = AccessLevel.PROTECTED)` — JPA 전용, `public` 기본 생성자 금지
