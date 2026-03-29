@@ -1,15 +1,15 @@
 package com.example.ari.global.error;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record ErrorResponse(
-        LocalDateTime timestamp,
+        Instant timestamp,
         int status,
         String code,
         String message
 ) {
 
     public static ErrorResponse of(int status, String code, String message) {
-        return new ErrorResponse(LocalDateTime.now(), status, code, message);
+        return new ErrorResponse(Instant.now(), status, code, message);
     }
 }

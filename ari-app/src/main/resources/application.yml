@@ -11,6 +11,10 @@ ari:
   username: ${ARI_USERNAME:asterisk}
   password: ${ARI_PASSWORD:asterisk}
   app-name: ${ARI_APP_NAME:ari-app}
+  reconnect:
+    initial-delay-ms: 1000
+    max-delay-ms: 30000
+    max-attempts: 0
 
 logging:
   level:
