@@ -33,7 +33,7 @@ public class WebSocketConfig {
         return builder -> {
             SimpleModule module = new SimpleModule("ari-instant");
             module.addDeserializer(Instant.class, new AriInstantDeserializer());
-            builder.modules(module);
+            builder.modulesToInstall(module);
         };
     }
 }
