@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Test Console</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e1e4e8; min-height: 100vh; }
+
+        .header { background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+        .header h1 { font-size: 18px; font-weight: 600; }
+        .header .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8b949e; }
+        .header .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot.connected { background: #3fb950; }
+        .dot.disconnected { background: #f85149; }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+        .panel { background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
+        .panel-header { padding: 12px 16px; border-bottom: 1px solid #30363d; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+        .panel-body { padding: 16px; }
+
+        .full-width { grid-column: 1 / -1; }
+
+        /* Calls Table */
+        .calls-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .calls-table th { text-align: left; padding: 8px 12px; color: #8b949e; font-weight: 500; border-bottom: 1px solid #30363d; }
+        .calls-table td { padding: 10px 12px; border-bottom: 1px solid #21262d; vertical-align: middle; }
+        .calls-table tr:hover td { background: #1c2128; }
+        .calls-table .empty { text-align: center; padding: 40px; color: #484f58; }
+
+        /* State Badge */
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+        .badge.RINGING { background: #1a3a2a; color: #3fb950; animation: pulse 1.5s infinite; }
+        .badge.ANSWERED { background: #1a2a3a; color: #58a6ff; }
+        .badge.HUNGUP { background: #2a1a1a; color: #f85149; }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        /* Buttons */
+        .btn { padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-answer { background: #238636; color: #fff; }
+        .btn-answer:hover:not(:disabled) { background: #2ea043; }
+        .btn-hangup { background: #da3633; color: #fff; }
+        .btn-hangup:hover:not(:disabled) { background: #f85149; }
+        .btn-sm { padding: 4px 10px; font-size: 11px; }
+        .btn-group { display: flex; gap: 6px; }
+
+        /* Event Log */
+        .event-log { height: 360px; overflow-y: auto; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.7; padding: 4px 0; }
+        .event-log::-webkit-scrollbar { width: 6px; }
+        .event-log::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+        .event-entry { padding: 2px 12px; border-left: 3px solid transparent; }
+        .event-entry:hover { background: #1c2128; }
+        .event-entry .time { color: #484f58; margin-right: 8px; }
+        .event-entry.info { border-left-color: #58a6ff; }
+        .event-entry.success { border-left-color: #3fb950; }
+        .event-entry.error { border-left-color: #f85149; }
+        .event-entry.warn { border-left-color: #d29922; }
+
+        /* Call Detail */
+        .detail-grid { display: grid; grid-template-columns: 120px 1fr; gap: 8px; font-size: 13px; }
+        .detail-grid dt { color: #8b949e; }
+        .detail-grid dd { color: #e1e4e8; word-break: break-all; }
+        .no-selection { color: #484f58; text-align: center; padding: 40px; font-size: 13px; }
+
+        /* Controls */
+        .controls { display: flex; gap: 8px; align-items: center; }
+        .controls label { font-size: 12px; color: #8b949e; }
+        .controls select, .controls input { background: #0d1117; border: 1px solid #30363d; color: #e1e4e8; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+
+        .refresh-indicator { font-size: 12px; color: #484f58; }
+        .refresh-indicator.active { color: #3fb950; }
+
+        /* Count badge */
+        .count { background: #30363d; color: #8b949e; padding: 1px 8px; border-radius: 10px; font-size: 12px; margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Call Test Console</h1>
+        <div class="status">
+            <div class="controls">
+                <label>Polling</label>
+                <select id="pollInterval" onchange="updatePolling()">
+                    <option value="1000">1s</option>
+                    <option value="2000" selected>2s</option>
+                    <option value="5000">5s</option>
+                    <option value="0">Off</option>
+                </select>
+            </div>
+            <span class="refresh-indicator" id="refreshIndicator"></span>
+            <div class="dot disconnected" id="statusDot"></div>
+            <span id="statusText">Connecting...</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Active Calls -->
+        <div class="panel full-width">
+            <div class="panel-header">
+                Active Calls <span class="count" id="callCount">0</span>
+            </div>
+            <div class="panel-body" style="padding: 0;">
+                <table class="calls-table">
+                    <thead>
+                        <tr>
+                            <th>Channel ID</th>
+                            <th>Channel Name</th>
+                            <th>Caller</th>
+                            <th>State</th>
+                            <th>Duration</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="callsBody">
+                        <tr><td colspan="6" class="empty">No active calls</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Call Detail -->
+        <div class="panel">
+            <div class="panel-header">Call Detail</div>
+            <div class="panel-body" id="callDetail">
+                <div class="no-selection">Select a call to view details</div>
+            </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="panel">
+            <div class="panel-header">
+                Event Log
+                <button class="btn btn-sm btn-hangup" onclick="clearLog()" style="background:#30363d;">Clear</button>
+            </div>
+            <div class="panel-body" style="padding: 0;">
+                <div class="event-log" id="eventLog"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+const API_BASE = '/api/v1/calls';
+let pollTimer = null;
+let selectedChannelId = null;
+let previousCalls = new Map();
+
+// --- API ---
+async function apiGet(url) {
+    const res = await fetch(url);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: res.statusText }));
+        throw { status: res.status, ...err };
+    }
+    return res.json();
+}
+
+async function apiPost(url) {
+    const res = await fetch(url, { method: 'POST' });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: res.statusText }));
+        throw { status: res.status, ...err };
+    }
+    return res.json();
+}
+
+// --- Calls ---
+async function fetchCalls() {
+    try {
+        const calls = await apiGet(API_BASE);
+        setConnected(true);
+        renderCalls(calls);
+        detectEvents(calls);
+        previousCalls = new Map(calls.map(c => [c.channelId, c]));
+        if (selectedChannelId) {
+            const selected = calls.find(c => c.channelId === selectedChannelId);
+            if (selected) renderDetail(selected);
+        }
+    } catch (e) {
+        setConnected(false);
+        log('error', `Failed to fetch calls: ${e.message || e}`);
+    }
+}
+
+function detectEvents(calls) {
+    const currentMap = new Map(calls.map(c => [c.channelId, c]));
+
+    // New calls
+    for (const call of calls) {
+        if (!previousCalls.has(call.channelId)) {
+            log('success', `New call: ${call.callerNumber} (${call.callerName}) → ${call.channelName}`);
+        }
+    }
+
+    // State changes
+    for (const call of calls) {
+        const prev = previousCalls.get(call.channelId);
+        if (prev && prev.state !== call.state) {
+            log('info', `State changed: ${call.channelId.substring(0, 12)}... ${prev.state} → ${call.state}`);
+        }
+    }
+
+    // Removed calls
+    for (const [id, prev] of previousCalls) {
+        if (!currentMap.has(id)) {
+            log('warn', `Call removed: ${prev.callerNumber} (${prev.channelName})`);
+            if (selectedChannelId === id) {
+                selectedChannelId = null;
+                document.getElementById('callDetail').innerHTML = '<div class="no-selection">Call ended</div>';
+            }
+        }
+    }
+}
+
+function renderCalls(calls) {
+    const tbody = document.getElementById('callsBody');
+    document.getElementById('callCount').textContent = calls.length;
+
+    if (calls.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No active calls</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = calls.map(call => `
+        <tr onclick="selectCall('${call.channelId}')" style="cursor:pointer; ${selectedChannelId === call.channelId ? 'background:#1c2128;' : ''}">
+            <td style="font-family:monospace; font-size:12px;">${call.channelId.substring(0, 16)}...</td>
+            <td>${call.channelName || '-'}</td>
+            <td>${call.callerNumber} ${call.callerName ? '(' + call.callerName + ')' : ''}</td>
+            <td><span class="badge ${call.state}">${call.state}</span></td>
+            <td style="font-family:monospace;">${calcDuration(call)}</td>
+            <td>
+                <div class="btn-group">
+                    <button class="btn btn-answer btn-sm" onclick="event.stopPropagation(); answerCall('${call.channelId}')" ${call.state !== 'RINGING' ? 'disabled' : ''}>Answer</button>
+                    <button class="btn btn-hangup btn-sm" onclick="event.stopPropagation(); hangupCall('${call.channelId}')" ${call.state === 'HUNGUP' ? 'disabled' : ''}>Hangup</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function calcDuration(call) {
+    const start = call.answeredAt || call.startedAt;
+    if (!start || call.state === 'HUNGUP') {
+        if (call.startedAt && call.endedAt) {
+            const sec = Math.floor((new Date(call.endedAt) - new Date(call.startedAt)) / 1000);
+            return formatSec(sec);
+        }
+        return '-';
+    }
+    const sec = Math.floor((Date.now() - new Date(start)) / 1000);
+    return formatSec(sec);
+}
+
+function formatSec(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function selectCall(channelId) {
+    selectedChannelId = channelId;
+    fetchCalls();
+}
+
+function renderDetail(call) {
+    document.getElementById('callDetail').innerHTML = `
+        <dl class="detail-grid">
+            <dt>Channel ID</dt><dd style="font-family:monospace; font-size:12px;">${call.channelId}</dd>
+            <dt>Channel Name</dt><dd>${call.channelName || '-'}</dd>
+            <dt>Caller Number</dt><dd>${call.callerNumber || '-'}</dd>
+            <dt>Caller Name</dt><dd>${call.callerName || '-'}</dd>
+            <dt>State</dt><dd><span class="badge ${call.state}">${call.state}</span></dd>
+            <dt>Started At</dt><dd>${formatTime(call.startedAt)}</dd>
+            <dt>Answered At</dt><dd>${formatTime(call.answeredAt)}</dd>
+            <dt>Ended At</dt><dd>${formatTime(call.endedAt)}</dd>
+        </dl>
+        <div style="margin-top: 16px;">
+            <div class="btn-group">
+                <button class="btn btn-answer" onclick="answerCall('${call.channelId}')" ${call.state !== 'RINGING' ? 'disabled' : ''}>Answer</button>
+                <button class="btn btn-hangup" onclick="hangupCall('${call.channelId}')" ${call.state === 'HUNGUP' ? 'disabled' : ''}>Hangup</button>
+            </div>
+        </div>
+    `;
+}
+
+function formatTime(iso) {
+    if (!iso) return '-';
+    return new Date(iso).toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+}
+
+// --- Actions ---
+async function answerCall(channelId) {
+    try {
+        log('info', `Answering ${channelId.substring(0, 12)}...`);
+        const call = await apiPost(`${API_BASE}/${channelId}/answer`);
+        log('success', `Answered: ${call.channelId.substring(0, 12)}... → ${call.state}`);
+        await fetchCalls();
+    } catch (e) {
+        log('error', `Answer failed: ${e.message || e.error || JSON.stringify(e)}`);
+    }
+}
+
+async function hangupCall(channelId) {
+    try {
+        log('info', `Hanging up ${channelId.substring(0, 12)}...`);
+        const call = await apiPost(`${API_BASE}/${channelId}/hangup`);
+        log('success', `Hung up: ${call.channelId.substring(0, 12)}... → ${call.state}`);
+        await fetchCalls();
+    } catch (e) {
+        log('error', `Hangup failed: ${e.message || e.error || JSON.stringify(e)}`);
+    }
+}
+
+// --- Event Log ---
+function log(level, message) {
+    const el = document.getElementById('eventLog');
+    const time = new Date().toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    el.innerHTML += `<div class="event-entry ${level}"><span class="time">${time}</span>${message}</div>`;
+    el.scrollTop = el.scrollHeight;
+}
+
+function clearLog() {
+    document.getElementById('eventLog').innerHTML = '';
+}
+
+// --- Polling ---
+function updatePolling() {
+    const interval = parseInt(document.getElementById('pollInterval').value);
+    if (pollTimer) clearInterval(pollTimer);
+    if (interval > 0) {
+        pollTimer = setInterval(() => {
+            const indicator = document.getElementById('refreshIndicator');
+            indicator.textContent = '●';
+            indicator.className = 'refresh-indicator active';
+            fetchCalls().then(() => {
+                setTimeout(() => {
+                    indicator.textContent = '';
+                    indicator.className = 'refresh-indicator';
+                }, 200);
+            });
+        }, interval);
+    }
+}
+
+function setConnected(connected) {
+    document.getElementById('statusDot').className = `dot ${connected ? 'connected' : 'disconnected'}`;
+    document.getElementById('statusText').textContent = connected ? 'Connected' : 'Disconnected';
+}
+
+// --- Init ---
+log('info', 'Call Test Console started');
+fetchCalls();
+updatePolling();
+</script>
+</body>
+</html>
