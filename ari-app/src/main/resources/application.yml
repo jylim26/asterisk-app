@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: ari-app
+
+server:
+  port: 8080
+
+ari:
+  host: ${ARI_HOST:localhost}
+  port: ${ARI_PORT:8088}
+  username: ${ARI_USERNAME:asterisk}
+  password: ${ARI_PASSWORD:asterisk}
+  app-name: ${ARI_APP_NAME:ari-app}
+
+logging:
+  level:
+    root: INFO
+    com.example.ari: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always

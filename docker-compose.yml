@@ -16,6 +16,21 @@ services:
     environment:
       - TZ=Asia/Seoul
 
+  ari-app:
+    build: ./ari-app
+    container_name: ari-app
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Seoul
+      - ARI_HOST=localhost
+      - ARI_PORT=8088
+      - ARI_USERNAME=asterisk
+    depends_on:
+      - asterisk
+
 volumes:
   asterisk-config:
   asterisk-logs:
