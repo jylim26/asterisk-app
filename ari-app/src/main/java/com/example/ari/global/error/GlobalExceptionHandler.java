@@ -1,7 +1,5 @@
 package com.example.ari.global.error;
 
-import com.example.ari.call.exception.ChannelNotFoundException;
-import com.example.ari.call.exception.InvalidCallStateException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,26 +22,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.internalServerError().body(response);
     }
 
-    @ExceptionHandler(ChannelNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleChannelNotFound(ChannelNotFoundException e) {
-        log.warn("Channel not found: {}", e.getMessage());
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {
+        log.warn("Business error: code={}, message={}", e.getCode(), e.getMessage());
         ErrorResponse response = ErrorResponse.of(
-                HttpStatus.NOT_FOUND.value(),
-                "CHANNEL_NOT_FOUND",
+                e.getStatus().value(),
+                e.getCode(),
                 e.getMessage()
         );
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-    }
-
-    @ExceptionHandler(InvalidCallStateException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidCallState(InvalidCallStateException e) {
-        log.warn("Invalid call state: {}", e.getMessage());
-        ErrorResponse response = ErrorResponse.of(
-                HttpStatus.CONFLICT.value(),
-                "INVALID_CALL_STATE",
-                e.getMessage()
-        );
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        return ResponseEntity.status(e.getStatus()).body(response);
     }
 
     @ExceptionHandler(RestClientResponseException.class)
